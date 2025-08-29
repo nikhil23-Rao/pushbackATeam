@@ -5,20 +5,20 @@
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 // motor groups
-pros::MotorGroup leftMotors({-5, 4, -3},
+pros::MotorGroup leftMotors({-21, 6, -13},
                             pros::MotorGearset::blue); // left motor group - ports 3 (reversed), 4, 5 (reversed)
-pros::MotorGroup rightMotors({6, -9, 7}, pros::MotorGearset::blue); // right motor group - ports 6, 7, 9 (reversed)
+pros::MotorGroup rightMotors({-19, 11, 12}, pros::MotorGearset::blue); // right motor group - ports 6, 7, 9 (reversed)
 
 // Inertial Sensor on port 10
-pros::Imu imu(10);
+pros::Imu imu(9);
 
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
-pros::Rotation horizontalEnc(20);
+pros::Rotation horizontalEnc(19);
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
 pros::Rotation verticalEnc(-11);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
-lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, -5.75);
+lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_325, -5.75);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
 lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, -2.5);
 
@@ -26,8 +26,8 @@ lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, -2.5);
 lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               &rightMotors, // right motor group
                               10, // 10 inch track width
-                              lemlib::Omniwheel::NEW_4, // using new 4" omnis
-                              360, // drivetrain rpm is 360
+                              lemlib::Omniwheel::NEW_325, // using new 4" omnis
+                              450, // drivetrain rpm is 360
                               2 // horizontal drift is 2. If we had traction wheels, it would have been 8
 );
 
@@ -56,7 +56,7 @@ lemlib::ControllerSettings angularController(2, // proportional gain (kP)
 );
 
 // sensors for odometry
-lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
+lemlib::OdomSensors sensors(nullptr, // vertical tracking wheel
                             nullptr, // vertical tracking wheel 2, set to nullptr as we don't have a second one
                             &horizontal, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
@@ -111,6 +111,8 @@ void initialize() {
     });
 }
 
+
+
 /**
  * Runs while the robot is disabled
  */
@@ -131,46 +133,132 @@ ASSET(example_txt); // '.' replaced with "_" to make c++ happy
  * This is an example autonomous routine which demonstrates a lot of the features LemLib has to offer
  */
 void autonomous() {
-    // Move to x: 20 and y: 15, and face heading 90. Timeout set to 4000 ms
-    chassis.moveToPose(20, 15, 90, 4000);
-    // Move to x: 0 and y: 0 and face heading 270, going backwards. Timeout set to 4000ms
-    chassis.moveToPose(0, 0, 270, 4000, {.forwards = false});
-    // cancel the movement after it has traveled 10 inches
-    chassis.waitUntil(10);
-    chassis.cancelMotion();
-    // Turn to face the point x:45, y:-45. Timeout set to 1000
-    // dont turn faster than 60 (out of a maximum of 127)
-    chassis.turnToPoint(45, -45, 1000, {.maxSpeed = 60});
-    // Turn to face a direction of 90º. Timeout set to 1000
-    // will always be faster than 100 (out of a maximum of 127)
-    // also force it to turn clockwise, the long way around
-    chassis.turnToHeading(90, 1000, {.direction = AngularDirection::CW_CLOCKWISE, .minSpeed = 100});
-    // Follow the path in path.txt. Lookahead at 15, Timeout set to 4000
-    // following the path with the back of the robot (forwards = false)
-    // see line 116 to see how to define a path
-    chassis.follow(example_txt, 15, 4000, false);
-    // wait until the chassis has traveled 10 inches. Otherwise the code directly after
-    // the movement will run immediately
-    // Unless its another movement, in which case it will wait
-    chassis.waitUntil(10);
-    pros::lcd::print(4, "Traveled 10 inches during pure pursuit!");
-    // wait until the movement is done
+    chassis.setPose(0,0,0);
+    chassis.moveToPoint(0,14,1000);
     chassis.waitUntilDone();
-    pros::lcd::print(4, "pure pursuit finished!");
+    // // Move to x: 20 and y: 15, and face heading 90. Timeout set to 4000 ms
+    // chassis.moveToPose(20, 15, 90, 4000);
+    // // Move to x: 0 and y: 0 and face heading 270, going backwards. Timeout set to 4000ms
+    // chassis.moveToPose(0, 0, 270, 4000, {.forwards = false});
+    // // cancel the movement after it has traveled 10 inches
+    // chassis.waitUntil(10);
+    // chassis.cancelMotion();
+    // // Turn to face the point x:45, y:-45. Timeout set to 1000
+    // // dont turn faster than 60 (out of a maximum of 127)
+    // chassis.turnToPoint(45, -45, 1000, {.maxSpeed = 60});
+    // // Turn to face a direction of 90º. Timeout set to 1000
+    // // will always be faster than 100 (out of a maximum of 127)
+    // // also force it to turn clockwise, the long way around
+    // chassis.turnToHeading(90, 1000, {.direction = AngularDirection::CW_CLOCKWISE, .minSpeed = 100});
+    // // Follow the path in path.txt. Lookahead at 15, Timeout set to 4000
+    // // following the path with the back of the robot (forwards = false)
+    // // see line 116 to see how to define a path
+    // chassis.follow(example_txt, 15, 4000, false);
+    // // wait until the chassis has traveled 10 inches. Otherwise the code directly after
+    // // the movement will run immediately
+    // // Unless its another movement, in which case it will wait
+    // chassis.waitUntil(10);
+    // pros::lcd::print(4, "Traveled 10 inches during pure pursuit!");
+    // // wait until the movement is done
+    // chassis.waitUntilDone();
+    // pros::lcd::print(4, "pure pursuit finished!");
 }
 
 /**
  * Runs in driver control
  */
+
+pros::Motor firstStage(20, pros::v5::MotorGears::blue, pros::v5::MotorUnits::degrees);
+pros::Motor secondStage(10, pros::v5::MotorGears::blue, pros::v5::MotorUnits::degrees);
+pros::Motor storage(5, pros::v5::MotorGears::blue, pros::v5::MotorUnits::degrees);
+
+
+void middleScore() {
+  firstStage.move_voltage(12000);
+  secondStage.move_voltage(12000);
+  storage.move_voltage(12000);
+}
+
+void longWheelScore() {
+  firstStage.move_voltage(12000);
+  secondStage.move_voltage(12000);
+  storage.move_voltage(12000);
+}
+
+void inventoryScore() {
+
+  firstStage.move_voltage(12000);
+  secondStage.move_voltage(-12000);
+  storage.move_voltage(12000);
+}
+
+void topStageScore() {
+    firstStage.move_voltage(12000);
+    secondStage.move_voltage(-12000);
+}
+
+void outtake() {
+  firstStage.move_voltage(-12000);
+  secondStage.move_voltage(12000);
+}
+
+pros::adi::DigitalOut hood('B');
+static bool toggle {false};
+
+void updateIntake(){
+    if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {          
+        inventoryScore();     
+        if(!toggle){
+                hood.set_value(true);
+                toggle = !toggle;
+            }
+    } else {
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
+            middleScore();
+        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+            outtake();
+        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) {
+            topStageScore();
+        } else {
+            firstStage.move_velocity(0);
+            secondStage.move_velocity(0);
+            storage.move_velocity(0);
+           if(toggle){
+                hood.set_value(false);
+                toggle = !toggle;
+            }
+        }   
+    } 
+}
+
+
+/*
+void updateHood(){
+    if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_B)) {
+        if (!toggle) {
+            hood.set_value(true);
+            toggle = !toggle;
+        }
+        else {
+            hood.set_value(false);
+            toggle = !toggle;
+        }
+    }
+}
+    */
+
+
 void opcontrol() {
     // controller
     // loop to continuously update motors
     while (true) {
         // get joystick positions
         int leftY = controller.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
-        int rightX = controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X);
+        int rightX = controller.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_Y);
         // move the chassis with curvature drive
-        chassis.arcade(leftY, rightX);
+        chassis.tank(leftY, rightX);
+        updateIntake();
+        //updateHood();
         // delay to save resources
         pros::delay(10);
     }
