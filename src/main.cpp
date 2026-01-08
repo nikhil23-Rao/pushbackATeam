@@ -18,10 +18,10 @@ pros::Imu imu(21);
 
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
-pros::Rotation horizontalEnc(16);
+pros::Rotation horizontalEnc(0);
 
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
-pros::Rotation verticalEnc(-11);
+pros::Rotation verticalEnc(-10);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
 lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_325, -5.75);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
@@ -38,11 +38,11 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
 
 // lateral motion controller
 lemlib::ControllerSettings linearController(
-    1.5,    // kP
+    1.8,    // kP
     0.0,    // kI
-    60.0,   // kD
+    0.0,   // kD
     3,      // anti windup
-    2.0,    // small error range (in)
+    0.25,    // small error range (in)
     200,    // small error timeout (ms)
     4.0,    // large error range (in)
     400,    // large error timeout (ms)
@@ -53,12 +53,12 @@ lemlib::ControllerSettings linearController(
 
 
 // angular motion controller
-lemlib::ControllerSettings angularController(2, // proportional gain (kP)
+lemlib::ControllerSettings angularController(1, // proportional gain (kP)
                                              0, // integral gain (kI)
-                                             10, // derivative gain (kD)
+                                             0, // derivative gain (kD)
                                              3, // anti windup
                                              1, // small error range, in degrees
-                                             100, // small error range timeout, in milliseconds
+                                             50, // small error range timeout, in milliseconds
                                              3, // large error range, in degrees
                                              500, // large error range timeout, in milliseconds
                                              0 // maximum acceleration (slew)
@@ -67,7 +67,7 @@ lemlib::ControllerSettings angularController(2, // proportional gain (kP)
 // sensors for odometry
 lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
                             nullptr, // vertical tracking wheel 2, set to nullptr as we don't have a second one
-                            &horizontal, // horizontal tracking wheel
+                            nullptr, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
                             &imu // inertial sensor
 );
@@ -469,7 +469,8 @@ void progSkills() {
 
 void rightSide4Rush(){
     chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 24, 1000);
+    chassis.moveToPoint(0,48,1000, {.maxSpeed=79});
+    chassis.waitUntilDone();
 }
 
 void autonomous(){
