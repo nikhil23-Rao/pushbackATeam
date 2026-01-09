@@ -21,7 +21,7 @@ pros::Imu imu(21);
 pros::Rotation horizontalEnc(0);
 
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
-pros::Rotation verticalEnc(-10);
+pros::Rotation verticalEnc(10);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
 lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_325, -5.75);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
@@ -38,18 +38,16 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
 
 // lateral motion controller
 lemlib::ControllerSettings linearController(
-    1.8,    // kP
+    2,    // kP
     0.0,    // kI
-    0.0,   // kD
+    8,   // kD
     3,      // anti windup
-    0.25,    // small error range (in)
-    200,    // small error timeout (ms)
+    0.15,    // small error range (in)
+    100,    // small error timeout (ms)
     4.0,    // large error range (in)
     400,    // large error timeout (ms)
-    6       // slew
+    10       // slew
 );
-
-
 
 
 // angular motion controller
@@ -172,309 +170,353 @@ void deployTrapdoor(){
     trapdoor.set_value(toggle);
 }
 // Globals for R1 tracking
-static bool r1WasPressed = false;
-static int r1PressStart = 0;      // timestamp in ms
-static const int HOLD_THRESHOLD = 180; // ms
-
-static bool descoreToggle = false;
+// assumes these exist globally
+bool r2WasPressed = false;
+bool descoreDeployed = false;
 
 void updateIntakeAndDescore() {
-    int now = pros::millis();
     bool r1Pressed = controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
+    bool r2Pressed = controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
 
-    // --- Detect button press start ---
-    if (r1Pressed && !r1WasPressed) {
-        r1PressStart = now;
+    // --- BOTH pressed → OUTTAKE (highest priority) ---
+    if (r1Pressed && r2Pressed) {
+        outtake();
+        return;
     }
 
-    // --- Detect button release (manual) ---
-    if (!r1Pressed && r1WasPressed) {
-        int heldTime = now - r1PressStart;
-        if (heldTime < HOLD_THRESHOLD) {
-            // Quick tap → toggle descore
-            descoreToggle = !descoreToggle;
-            descore.set_value(descoreToggle);
-        }
-        // else: held long enough → do nothing here, intake logic will handle hold
+    // --- R2 toggle on press (edge detect) ---
+    if (r2Pressed && !r2WasPressed) {
+        descoreDeployed = !descoreDeployed;
     }
+    r2WasPressed = r2Pressed;
 
-    r1WasPressed = r1Pressed; // update previous state
-
-    // --- Handle Intake when holding R1 ---
-    if (r1Pressed && (now - r1PressStart >= HOLD_THRESHOLD)) {
-        // R1 is being held → run normal intake logic
-        inventoryScore(); // or topStageScore / middleScore depending on L1 toggle
-    } else {
-        // Other intake controls
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
-            outtake();
-        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1) && toggle) {
+    // --- Handle Intake when R1 is pressed ---
+    if (r1Pressed) {
+        inventoryScore();
+    } 
+    else {
+        // Other intake controls (UNCHANGED STRUCTURE)
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1) && toggle) {
             middleScore();
-        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
+        } 
+        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
             topStageScore();
-        } else if (!r1Pressed) {
-            // stop motors if nothing pressed
+        } 
+        else {
+            // idle
+            descore.set_value(descoreDeployed);
             firstStage.move_velocity(0);
             secondStage.move_velocity(0);
         }
     }
 }
 
+// void rightSide9Ball(){
+//     chassis.moveToPoint(0, 24, 700);
+//     pros::delay(750);
+//     scraper.set_value(true);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(90, 750);
+//     chassis.waitUntilDone();
 
-void rightSide9Ball(){
-    chassis.moveToPoint(0, 24, 700);
-    pros::delay(750);
-    scraper.set_value(true);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(90, 750);
-    chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
+//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
+//     chassis.waitUntilDone();
+//     scraper.set_value(false);
+//     chassis.moveToPoint(0, -18, 1200, {.forwards = false, .maxSpeed = 60}); 
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(1500);
+//     firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
 
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
-    chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-    chassis.waitUntilDone();
-    scraper.set_value(false);
-    chassis.moveToPoint(0, -18, 1200, {.forwards = false, .maxSpeed = 60}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1500);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(-11.4, 6, 700);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(0, 500);
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
+//     chassis.waitUntilDone();
+// }
 
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(-11.4, 6, 700);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(0, 500);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
-    chassis.waitUntilDone();
-}
+// void soloAWP(){
+//     chassis.moveToPoint(0, 24, 700);
+//     pros::delay(750);
+//     scraper.set_value(true);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(90, 750);
+//     chassis.waitUntilDone();
 
-void soloAWP(){
-    chassis.moveToPoint(0, 24, 700);
-    pros::delay(750);
-    scraper.set_value(true);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(90, 750);
-    chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
+//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(0, -18.5, 1200, {.forwards = false, .maxSpeed = 65}); 
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(1500);
+//     firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
+//     scraper.set_value(false);
 
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
-    chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, -18.5, 1200, {.forwards = false, .maxSpeed = 65}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1500);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    scraper.set_value(false);
-
-    chassis.moveToPoint(0, -4, 500);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(129, 800);
-    chassis.waitUntilDone();
+//     chassis.moveToPoint(0, -4, 500);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(129, 800);
+//     chassis.waitUntilDone();
     
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 32, 1000);
-    pros::delay(600);
-    scraper.set_value(true);
-    pros::delay(400);
-    scraper.set_value(false);
-    chassis.waitUntilDone();
-    // chassis.moveToPoint(0, 43, 500);
-    // chassis.waitUntilDone();
-    // firstStage.move_velocity(-600);
-    // pros::delay(750);
-    // chassis.moveToPoint(0, 47, 500);
-    // chassis.waitUntilDone();
-    // chassis.moveToPoint(0, 37, 500, {.forwards = false});
-    // chassis.waitUntilDone();
-    chassis.turnToHeading(-45, 700);
-    chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 32, 1000);
+//     pros::delay(600);
+//     scraper.set_value(true);
+//     pros::delay(400);
+//     scraper.set_value(false);
+//     chassis.waitUntilDone();
+//     // chassis.moveToPoint(0, 43, 500);
+//     // chassis.waitUntilDone();
+//     // firstStage.move_velocity(-600);
+//     // pros::delay(750);
+//     // chassis.moveToPoint(0, 47, 500);
+//     // chassis.waitUntilDone();
+//     // chassis.moveToPoint(0, 37, 500, {.forwards = false});
+//     // chassis.waitUntilDone();
+//     chassis.turnToHeading(-45, 700);
+//     chassis.waitUntilDone();
 
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 35, 800, {.maxSpeed = 90});
-    pros::delay(800);
-    scraper.set_value(true);
-    // pros::delay(400);
-    // scraper.set_value(false);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-45, 700);
-    chassis.waitUntilDone();
-    trapdoor.set_value(true);
+//     chassis.setPose(0,0,0);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 35, 800, {.maxSpeed = 90});
+//     pros::delay(800);
+//     scraper.set_value(true);
+//     // pros::delay(400);
+//     // scraper.set_value(false);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(-45, 700);
+//     chassis.waitUntilDone();
+//     trapdoor.set_value(true);
     
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(600);
-    // firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    trapdoor.set_value(false);
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(600);
+//     // firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
+//     trapdoor.set_value(false);
 
-    chassis.moveToPoint(0, 41.75, 800);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-45, 800);
-    chassis.waitUntilDone();
+//     chassis.moveToPoint(0, 41.75, 800);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(-45, 800);
+//     chassis.waitUntilDone();
 
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(0, -13.5, 500, {.forwards = false}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1000);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-}
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, -13.5, 500, {.forwards = false}); 
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(1000);
+//     firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
+// }
 
-void leftSide43(){
-    firstStage.move_velocity(600);
-    chassis.moveToPose(-14.7, 27.7, -60, 1400, {.maxSpeed = 127});
-    pros::delay(800);
-    scraper.set_value(true);
-    chassis.waitUntilDone();
+// void leftSide43(){
+//     firstStage.move_velocity(600);
+//     chassis.moveToPose(-14.7, 27.7, -60, 1400, {.maxSpeed = 127});
+//     pros::delay(800);
+//     scraper.set_value(true);
+//     chassis.waitUntilDone();
 
-    scraper.set_value(false);
-    chassis.turnToHeading(-125, 800);
-    chassis.waitUntilDone();
+//     scraper.set_value(false);
+//     chassis.turnToHeading(-125, 800);
+//     chassis.waitUntilDone();
 
-    firstStage.move_velocity(0);
-    trapdoor.set_value(true);
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1400);
-    secondStage.move_velocity(0);
-    trapdoor.set_value(false);
+//     firstStage.move_velocity(0);
+//     trapdoor.set_value(true);
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(1400);
+//     secondStage.move_velocity(0);
+//     trapdoor.set_value(false);
 
-    chassis.moveToPoint(0, 18, 800);
-    chassis.waitUntilDone();
-    pros::delay(200);
-    chassis.turnToHeading(-53, 800);
-    chassis.waitUntilDone();
-    chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, 18, 800);
+//     chassis.waitUntilDone();
+//     pros::delay(200);
+//     chassis.turnToHeading(-53, 800);
+//     chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
 
-    scraper.set_value(true);
-    pros::delay(400);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 19.5, 1300, {.maxSpeed = 85});
-    chassis.moveToPoint(0, 10, 500,  {.forwards=false});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, -22.5, 1100, {.forwards = false, .maxSpeed = 60}); 
-    chassis.waitUntilDone();
-    scraper.set_value(false);
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1500);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
+//     scraper.set_value(true);
+//     pros::delay(400);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 19.5, 1300, {.maxSpeed = 85});
+//     chassis.moveToPoint(0, 10, 500,  {.forwards=false});
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(0, -22.5, 1100, {.forwards = false, .maxSpeed = 60}); 
+//     chassis.waitUntilDone();
+//     scraper.set_value(false);
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(1500);
+//     firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
     
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(-11.4, 6, 700);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(0, 500);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
-    chassis.waitUntilDone();
-}
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(-11.4, 6, 700);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(0, 500);
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
+//     chassis.waitUntilDone();
+// }
 
-void progSkills() {
-    chassis.moveToPoint(0, 24, 700);
-    pros::delay(750);
-    scraper.set_value(true);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-90, 750);
-    chassis.waitUntilDone();
+// void progSkills() {
+//     chassis.moveToPoint(0, 24, 700);
+//     pros::delay(750);
+//     scraper.set_value(true);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(-90, 750);
+//     chassis.waitUntilDone();
 
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-    chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-    chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-    chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-    chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, -2, 900, {.forwards = false, .maxSpeed = 60}); 
-    chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     firstStage.move_velocity(600);
+//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
+//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
+//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
+//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
+//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(0, -2, 900, {.forwards = false, .maxSpeed = 60}); 
+//     chassis.waitUntilDone();
 
-    chassis.turnToHeading(-80, 1000);
-    chassis.waitUntilDone();
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(0, 96.2, 3000);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(85, 800);
-    chassis.waitUntilDone();
+//     chassis.turnToHeading(-80, 1000);
+//     chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, 96.2, 3000);
+//     chassis.waitUntilDone();
+//     chassis.turnToHeading(85, 800);
+//     chassis.waitUntilDone();
 
-    chassis.setPose(0,0,0);
-    chassis.moveToPoint(0, -22, 900, {.forwards = false, .maxSpeed = 60}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(2000);
-    secondStage.move_velocity(0);
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPoint(0, -22, 900, {.forwards = false, .maxSpeed = 60}); 
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(2000);
+//     secondStage.move_velocity(0);
 
-    chassis.moveToPoint(0, -2, 800, {.maxSpeed = 70});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, 13, 900, {.maxSpeed = 80});
-    chassis.moveToPoint(0, 5, 500,  {.forwards=false});
-    chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
-    chassis.moveToPoint(0, 5, 500,  {.forwards=false});
-    chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, -22, 1000, {.forwards = false, .maxSpeed = 50}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(2000);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    scraper.set_value(false);
-    pros::delay(400);
+//     chassis.moveToPoint(0, -2, 800, {.maxSpeed = 70});
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 80});
+//     chassis.moveToPoint(0, 5, 500,  {.forwards=false});
+//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
+//     chassis.moveToPoint(0, 5, 500,  {.forwards=false});
+//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
+//     chassis.waitUntilDone();
+//     chassis.moveToPoint(0, -22, 1000, {.forwards = false, .maxSpeed = 50}); 
+//     chassis.waitUntilDone();
+//     firstStage.move_velocity(600);
+//     secondStage.move_velocity(-600);
+//     pros::delay(2000);
+//     firstStage.move_velocity(0);
+//     secondStage.move_velocity(0);
+//     scraper.set_value(false);
+//     pros::delay(400);
 
-    chassis.moveToPoint(0, 0, 800);
-    chassis.waitUntilDone();  
-    chassis.turnToHeading(-135, 800);
-    chassis.waitUntilDone();
-    chassis.setPose(0,0,0);
-    chassis.moveToPose(-5, -10, 45, 800, {.forwards = false});
+//     chassis.moveToPoint(0, 0, 800);
+//     chassis.waitUntilDone();  
+//     chassis.turnToHeading(-135, 800);
+//     chassis.waitUntilDone();
+//     chassis.setPose(0,0,0);
+//     chassis.moveToPose(-5, -10, 45, 800, {.forwards = false});
 
-    // chassis.moveToPoint(-11, -10, 700);
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(180, 800);
-    // chassis.waitUntilDone();
-    // chassis.moveToPose(-15, -20, 0, 1000, {.forwards = false});
-    // chassis.waitUntilDone();
+//     // chassis.moveToPoint(-11, -10, 700);
+//     // chassis.waitUntilDone();
+//     // chassis.turnToHeading(180, 800);
+//     // chassis.waitUntilDone();
+//     // chassis.moveToPose(-15, -20, 0, 1000, {.forwards = false});
+//     // chassis.waitUntilDone();
 
-    // chassis.moveToPoint(0, 55, 1500);
-    // chassis.waitUntilDone();
-    // chassis.moveToPoint(-5, 57, 600);
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(0, 800);
-    // chassis.waitUntilDone();
-    // chassis.setPose(0,0,0);
+//     // chassis.moveToPoint(0, 55, 1500);
+//     // chassis.waitUntilDone();
+//     // chassis.moveToPoint(-5, 57, 600);
+//     // chassis.waitUntilDone();
+//     // chassis.turnToHeading(0, 800);
+//     // chassis.waitUntilDone();
+//     // chassis.setPose(0,0,0);
 
-    // chassis.moveToPoint(-11, -20.5, 500, {.forwards = false});
-    // chassis.waitUntilDone();
-}
+//     // chassis.moveToPoint(-11, -20.5, 500, {.forwards = false});
+//     // chassis.waitUntilDone();
+// }
 
 void rightSide4Rush(){
     chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0,48,1000, {.maxSpeed=79});
+    firstStage.move_velocity(600);
+    chassis.moveToPoint(10, 32.5, 1000, {.maxSpeed = 127});
+    pros::delay(900);
+    scraper.set_value(true);
     chassis.waitUntilDone();
+    chassis.turnToHeading(120, 800);
+    pros::delay(810);
+
+    chassis.setPose(10, 32.5, chassis.getPose().theta);
+
+    chassis.moveToPoint(37, 10, 1000, {.maxSpeed = 127});
+    // chassis.waitUntilDone();
+    firstStage.move_velocity(0);
+    chassis.turnToHeading(182, 750);
+    pros::delay(750);
+
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(0, -7.5, 1000, {.forwards = false, .maxSpeed = 127, .minSpeed = 100});
+    scraper.set_value(false);
+    chassis.waitUntilDone();
+    firstStage.move_velocity(600);
+    secondStage.move_velocity(-600);
+    pros::delay(1100);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    chassis.setPose(0, 0, 0);
+
+    chassis.moveToPoint(0, 2, 800, {.maxSpeed = 127, .minSpeed = 100});
+    // chassis.waitUntilDone();
+    chassis.turnToHeading(45, 800);
+    // chassis.waitUntilDone();
+    chassis.moveToPoint(-7, 0, 800, {.forwards = false, .maxSpeed = 127, .minSpeed =100});
+    // chassis.waitUntilDone();
+    chassis.turnToHeading(0, 800);
+    pros::delay(800);
+
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(0, -1.5, 1000, {.forwards = false,.maxSpeed = 127, .minSpeed = 100});
+    chassis.moveToPoint(0, -1.75, 1000, {.forwards = false,.maxSpeed = 127, .minSpeed = 50});
+    chassis.waitUntil(1);
+}
+
+void leftSide43(){
+    chassis.setPose(0,0,0);
+    scraper.set_value(true);
+    chassis.moveToPoint(0, 26, 1000);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-90, 800);
+
 }
 
 void autonomous(){
-    rightSide4Rush();
+    // rightSide4Rush();
+    // rightSide7Push();
+    // leftSide43();
+    chassis.setPose({0.0,0});
+    chassis.moveToPoint(0,24, 1000, {.maxSpeed=127});
+    chassis.waitUntilDone();
 }
 
 void opcontrol() {
