@@ -1,7 +1,7 @@
 {
   "py/object": "pros.conductor.project.Project",
   "py/state": {
-    "project_name": "leftSide43",
+    "project_name": "skills",
     "target": "v5",
     "templates": {
       "kernel": {
