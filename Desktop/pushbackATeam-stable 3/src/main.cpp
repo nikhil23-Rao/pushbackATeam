@@ -174,83 +174,6 @@ void outtake() {
   secondStage.move_voltage(12000);
 }
 
-// ================= INTAKE JAM SYSTEM =================
-
-enum class IntakeState {
-    IDLE,
-    INTAKING,
-    CLEARING_JAM
-};
-
-IntakeState intakeState = IntakeState::IDLE;
-
-double lastIntakePos = 0;
-uint32_t lastMovementTime = 0;
-uint32_t jamStartTime = 0;
-
-// ---- tuning ----
-constexpr int INTAKE_SPEED = -600;
-constexpr int OUTTAKE_SPEED = 600;
-
-constexpr int JAM_VELOCITY_THRESHOLD = 12; // rpm
-constexpr int JAM_TIME_MS = 300;            // stall time
-constexpr int CLEAR_TIME_MS = 300;          // reverse time
-
-void requestIntake(bool enable) {
-    if (!enable) {
-        intakeState = IntakeState::IDLE;
-        firstStage.move_velocity(0);
-        return;
-    }
-
-    if (intakeState == IntakeState::IDLE) {
-        intakeState = IntakeState::INTAKING;
-        lastIntakePos = firstStage.get_position();
-        lastMovementTime = pros::millis();
-    }
-}
-
-void updateIntakeJamSystem() {
-    uint32_t now = pros::millis();
-
-    switch (intakeState) {
-
-        case IntakeState::IDLE:
-            break;
-
-        case IntakeState::INTAKING: {
-            firstStage.move_velocity(INTAKE_SPEED);
-
-            double currentPos = firstStage.get_position();
-            double delta = fabs(currentPos - lastIntakePos);
-            int velocity = abs(firstStage.get_actual_velocity());
-
-            // jam detection
-            if (delta < 1.0 && velocity < JAM_VELOCITY_THRESHOLD) {
-                if (now - lastMovementTime > JAM_TIME_MS) {
-                    intakeState = IntakeState::CLEARING_JAM;
-                    jamStartTime = now;
-                }
-            } else {
-                lastMovementTime = now;
-                lastIntakePos = currentPos;
-            }
-            break;
-        }
-
-        case IntakeState::CLEARING_JAM:
-            firstStage.move_velocity(OUTTAKE_SPEED);
-
-            if (now - jamStartTime > CLEAR_TIME_MS) {
-                intakeState = IntakeState::INTAKING;
-                lastMovementTime = now;
-                lastIntakePos = firstStage.get_position();
-            }
-            break;
-    }
-}
-
-
 pros::adi::DigitalOut trapdoor('A');
 static bool toggle {false};
 pros::adi::DigitalOut scraper('B');
@@ -264,7 +187,7 @@ void deployScraper() {
     scraper.set_value(toggle2);
 }
 void deployTrapdoor(){
-    if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L2)) {
+    if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)) {
         toggle = !toggle;
     }
     trapdoor.set_value(toggle);
@@ -278,12 +201,6 @@ void updateIntakeAndDescore() {
     bool r1Pressed = controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1);
     bool r2Pressed = controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2);
 
-    // --- BOTH pressed → OUTTAKE (highest priority) ---
-    if (r1Pressed && controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-        outtake();
-        return;
-    }
-
     // --- R2 toggle on press (edge detect) ---
     if (r2Pressed && !r2WasPressed) {
         descoreDeployed = !descoreDeployed;
@@ -292,9 +209,8 @@ void updateIntakeAndDescore() {
 
     // --- Handle Intake when R1 is pressed ---
     if (r1Pressed) {
-        // inventoryScore();
-        requestIntake(true);
-
+        inventoryScore();
+    
     } 
     else {
         // Other intake controls (UNCHANGED STRUCTURE)
@@ -304,427 +220,690 @@ void updateIntakeAndDescore() {
         else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
             topStageScore();
         } 
+        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
+            outtake();
+        }
         else {
             // idle
             descore.set_value(descoreDeployed);
             // firstStage.move_velocity(0);
-            requestIntake(false);
             secondStage.move_velocity(0);
         }
     }
 }
 
-// void rightSide9Ball(){
-//     chassis.moveToPoint(0, 24, 700);
-//     pros::delay(750);
-//     scraper.set_value(true);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(90, 750);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
-//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-//     chassis.waitUntilDone();
-//     scraper.set_value(false);
-//     chassis.moveToPoint(0, -18, 1200, {.forwards = false, .maxSpeed = 60}); 
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1500);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(-11.4, 6, 700);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(0, 500);
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
-//     chassis.waitUntilDone();
-// }
-
-// void soloAWP(){
-//     chassis.moveToPoint(0, 24, 700);
-//     pros::delay(750);
-//     scraper.set_value(true);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(90, 750);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 11, 1100, {.maxSpeed = 110});
-//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, -18.5, 1200, {.forwards = false, .maxSpeed = 65}); 
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1500);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     scraper.set_value(false);
-
-//     chassis.moveToPoint(0, -4, 500);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(129, 800);
-//     chassis.waitUntilDone();
-    
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 32, 1000);
-//     pros::delay(600);
-//     scraper.set_value(true);
-//     pros::delay(400);
-//     scraper.set_value(false);
-//     chassis.waitUntilDone();
-//     // chassis.moveToPoint(0, 43, 500);
-//     // chassis.waitUntilDone();
-//     // firstStage.move_velocity(-600);
-//     // pros::delay(750);
-//     // chassis.moveToPoint(0, 47, 500);
-//     // chassis.waitUntilDone();
-//     // chassis.moveToPoint(0, 37, 500, {.forwards = false});
-//     // chassis.waitUntilDone();
-//     chassis.turnToHeading(-45, 700);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 35, 800, {.maxSpeed = 90});
-//     pros::delay(800);
-//     scraper.set_value(true);
-//     // pros::delay(400);
-//     // scraper.set_value(false);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(-45, 700);
-//     chassis.waitUntilDone();
-//     trapdoor.set_value(true);
-    
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(600);
-//     // firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     trapdoor.set_value(false);
-
-//     chassis.moveToPoint(0, 41.75, 800);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(-45, 800);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(0, -13.5, 500, {.forwards = false}); 
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1000);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-// }
-
-// void leftSide43(){
-//     firstStage.move_velocity(600);
-//     chassis.moveToPose(-14.7, 27.7, -60, 1400, {.maxSpeed = 127});
-//     pros::delay(800);
-//     scraper.set_value(true);
-//     chassis.waitUntilDone();
-
-//     scraper.set_value(false);
-//     chassis.turnToHeading(-125, 800);
-//     chassis.waitUntilDone();
-
-//     firstStage.move_velocity(0);
-//     trapdoor.set_value(true);
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(0, -13, 500, {.forwards = false, .maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1400);
-//     secondStage.move_velocity(0);
-//     trapdoor.set_value(false);
-
-//     chassis.moveToPoint(0, 18, 800);
-//     chassis.waitUntilDone();
-//     pros::delay(200);
-//     chassis.turnToHeading(-53, 800);
-//     chassis.waitUntilDone();
-//     chassis.setPose(0,0,0);
-
-//     scraper.set_value(true);
-//     pros::delay(400);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 19.5, 1300, {.maxSpeed = 85});
-//     chassis.moveToPoint(0, 10, 500,  {.forwards=false});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, -22.5, 1100, {.forwards = false, .maxSpeed = 60}); 
-//     chassis.waitUntilDone();
-//     scraper.set_value(false);
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1500);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-    
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(-11.4, 6, 700);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(0, 500);
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(-11.4, -4, 500, {.forwards = false});
-//     chassis.waitUntilDone();
-// }
-
-// void progSkills() {
-//     chassis.moveToPoint(0, 24, 700);
-//     pros::delay(750);
-//     scraper.set_value(true);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(-90, 750);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-//     chassis.moveToPoint(0, 3, 500,  {.forwards=false});
-//     chassis.moveToPoint(0, 11, 900, {.maxSpeed = 110});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, -2, 900, {.forwards = false, .maxSpeed = 60}); 
-//     chassis.waitUntilDone();
-
-//     chassis.turnToHeading(-80, 1000);
-//     chassis.waitUntilDone();
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(0, 96.2, 3000);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(85, 800);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPoint(0, -22, 900, {.forwards = false, .maxSpeed = 60}); 
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(2000);
-//     secondStage.move_velocity(0);
-
-//     chassis.moveToPoint(0, -2, 800, {.maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 80});
-//     chassis.moveToPoint(0, 5, 500,  {.forwards=false});
-//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
-//     chassis.moveToPoint(0, 5, 500,  {.forwards=false});
-//     chassis.moveToPoint(0, 13, 900, {.maxSpeed = 110});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, -22, 1000, {.forwards = false, .maxSpeed = 50}); 
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(2000);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     scraper.set_value(false);
-//     pros::delay(400);
-
-//     chassis.moveToPoint(0, 0, 800);
-//     chassis.waitUntilDone();  
-//     chassis.turnToHeading(-135, 800);
-//     chassis.waitUntilDone();
-//     chassis.setPose(0,0,0);
-//     chassis.moveToPose(-5, -10, 45, 800, {.forwards = false});
-
-//     // chassis.moveToPoint(-11, -10, 700);
-//     // chassis.waitUntilDone();
-//     // chassis.turnToHeading(180, 800);
-//     // chassis.waitUntilDone();
-//     // chassis.moveToPose(-15, -20, 0, 1000, {.forwards = false});
-//     // chassis.waitUntilDone();
-
-//     // chassis.moveToPoint(0, 55, 1500);
-//     // chassis.waitUntilDone();
-//     // chassis.moveToPoint(-5, 57, 600);
-//     // chassis.waitUntilDone();
-//     // chassis.turnToHeading(0, 800);
-//     // chassis.waitUntilDone();
-//     // chassis.setPose(0,0,0);
-
-//     // chassis.moveToPoint(-11, -20.5, 500, {.forwards = false});
-//     // chassis.waitUntilDone();
-// }
-
-void rightSide7Push(){
+void soloAWP(){
+    //move to first loader, turn towards it
     chassis.setPose(0, 0, 0);
-    firstStage.move_velocity(-600);
-    chassis.moveToPoint(10 - 4, 32.5 - 4, 700, {.maxSpeed = 127});
-    chassis.moveToPoint(11.5, 33.5, 700, {.maxSpeed = 50});
+    chassis.moveToPoint(0, 17.5, 1000, {.minSpeed = 127});
     chassis.waitUntilDone();
-    chassis.turnToHeading(125, 650);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(30, 12, 700, {.maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(180, 650);
+    chassis.turnToHeading(90, 800);
     scraper.set_value(true);
     chassis.waitUntilDone();
-
-    chassis.setPose(30, 12, chassis.getPose().theta);
-    chassis.moveToPoint(30, -16, 1200, {.maxSpeed = 80});
+    int xDist = -8;
+    int yDist = 17.5;
+    
+    //set pose at first loader, get balls
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist + 10, yDist, 500, {.maxSpeed = 127});
     chassis.waitUntilDone();
-    pros::delay(200);
-    chassis.moveToPoint(30.5, 12 + 15, 1100, {.forwards = false, .maxSpeed = 127});
+    chassis.moveToPoint(xDist + 22.5, yDist, 520, {.maxSpeed = 90});
     chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist, 700, {.forwards = false, .maxSpeed = 60});
+    pros::delay(300);
     scraper.set_value(false);
 
+    //score 4 balls
+    chassis.moveToPoint(xDist - 10, yDist, 750, {.forwards = false, .maxSpeed = 127});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(950);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+
+    //pick up 6 balls across
+    chassis.moveToPoint(xDist, yDist, 700);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-135, 800);
+    firstStage.move_velocity(-600);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist - 7, yDist - 24, 700);
+    pros::delay(500);
+    scraper.set_value(true);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 600);
+    chassis.waitUntilDone();
+    scraper.set_value(false);
+    chassis.setPose(xDist - 7, yDist - 24, chassis.getPose().theta);
+    chassis.moveToPoint(xDist-5, yDist - 20 - 38, 900);
+    pros::delay(750);
+    scraper.set_value(true);
+    chassis.moveToPoint(xDist-5, yDist - 20 - 49, 400, {.maxSpeed = 45});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(135, 800);
+}
+
+void rightSide7Push(){
+    //pick up stack of 3
+    chassis.setPose(0, 0, 0);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(13 - 5, 29 - 5, 1000);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(13, 29, 700, {.maxSpeed = 70});
+    chassis.turnToHeading(135, 800);
+    chassis.waitUntilDone();
+    int xDist = 13;
+    int yDist = 29;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //align to loader
+    chassis.moveToPoint(xDist + 15, yDist - 15, 700, {.minSpeed = 127});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 800);
+    chassis.waitUntilDone();
+    scraper.set_value(true);
+    pros::delay(300);
+    xDist = xDist + 15;
+    yDist = yDist - 15;
+
+    //set pose at first loader, get balls
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist - 10, 500, {.maxSpeed = 127});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 22.5, 700, {.maxSpeed = 90});
+    pros::delay(500);
+    // chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 5, 700, {.forwards = false, .maxSpeed = 60});
+    pros::delay(300);
+    scraper.set_value(false);
+
+    //score 4 balls
+    chassis.moveToPoint(xDist, yDist + 12, 1000, {.forwards = false, .maxSpeed = 127});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(1200);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    yDist = yDist + 12;
+
+    //descore arm
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist + 14, yDist - 5, 800);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(175, 800); 
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 15, yDist + 3.5, 800, {.forwards = false, .minSpeed = 127});
+    chassis.waitUntilDone();
+}
+
+void leftSide4Rush(){
+    //move to first loader, turn towards it
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(8, 28.75, 1000, {.maxSpeed = 127});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-90, 800);
+    scraper.set_value(true);
+    chassis.waitUntilDone();
+    int xDist = 8;
+    int yDist = 28.75;
+    
+    //set pose at first loader, get balls
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist - 10, yDist, 500, {.maxSpeed = 127});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist - 22.5, yDist, 700, {.maxSpeed = 90});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist, 700, {.forwards = false, .maxSpeed = 127});
+    pros::delay(300);
+    scraper.set_value(false);
+
+    //score 4 balls
+    chassis.moveToPoint(xDist + 16, yDist, 1000, {.forwards = false, .maxSpeed = 127});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(1000);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    xDist = xDist + 16;
+    yDist = yDist + 1;
+
+    //descore arm
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist - 7, yDist - 12, 800);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-95, 800); 
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 5, yDist - 12, 800, {.forwards = false, .minSpeed = 127});
+    chassis.waitUntilDone();
+}
+
+void rightSide4Rush(){
+    //move to first loader, turn towards it
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(0, 32, 1000);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(90, 800);
+    scraper.set_value(true);
+    chassis.waitUntilDone();
+    int xDist = 0;
+    int yDist = 32;
+    
+    //set pose at first loader, get balls
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist + 10, yDist - 1.5, 500, {.maxSpeed = 127});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 22.5, yDist - 1.5, 700, {.maxSpeed = 90});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 1.5, 700, {.forwards = false, .maxSpeed = 60});
+    pros::delay(300);
+    scraper.set_value(false);
+    yDist = yDist - 1.5;
+
+    //score 4 balls
+    chassis.moveToPoint(xDist - 13, yDist, 1000, {.forwards = false, .maxSpeed = 127});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(1000);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    xDist = xDist - 10;
+
+    //descore arm
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(-11, 6, 800);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-5, 800); 
+    chassis.waitUntilDone();
+    chassis.moveToPoint(-9, 6 - 9, 800, {.forwards = false, .minSpeed = 80});
+    chassis.waitUntilDone();
+}
+
+void leftSide43(){
+    //Pick up 4 balls, reset poistion
+    chassis.setPose(0,0,0);
+    firstStage.move_velocity(-600);
+    // chassis.moveToPose(-7, 18, -45, 600, {.minSpeed = 80});
+    // chassis.waitUntilDone();
+    chassis.moveToPoint(-9, 23, 1000, {.maxSpeed = 60});
+    pros::delay(750);
+    scraper.set_value(true);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-135, 800);
+    int xDist = -9;
+    int yDist = 23;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //deploy scraper, score 5 ball into mid goal
+    chassis.moveToPoint(xDist + 10, yDist + 10, 700, {.forwards = false, .maxSpeed = 60});
+    pros::delay(350);
+    trapdoor.set_value(true); 
+    chassis.waitUntilDone();
+    firstStage.move_velocity(0);
+    chassis.moveToPoint(xDist + 15, yDist + 14.25, 700, {.forwards = false});
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-400);
+    pros::delay(1000);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+
+    //drive --> align with loader/long goal
+    chassis.moveToPoint(xDist - 23, yDist - 17, 1000, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 800);
+    trapdoor.set_value(false);
+    chassis.waitUntilDone();
+    scraper.set_value(true);
+    xDist = xDist - 23;
+    yDist = yDist - 17;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //pick up 6 balls
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist - 10, 800, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 23, 1000);
+    chassis.waitUntilDone();
+    pros::delay(200);
+
+    //move back --> score
+    chassis.moveToPoint(xDist, yDist, 800, {.forwards = false, .maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 17, 800, {.forwards = false, .maxSpeed = 80});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(1000);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    yDist = yDist + 17;
+    scraper.set_value(false);
+
+    //descore arm
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(-11, 6, 800);
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-4, 800); 
+    chassis.waitUntilDone();
+    chassis.moveToPoint(-9.25, 6 - 8, 800, {.forwards = false, .minSpeed = 80});
+    chassis.waitUntilDone();
+
+
+
+    // //move to first loader, turn towards it
+    // chassis.setPose(0, 0, 0);
+    // // firstStage.move_velocity(600);
+    // chassis.moveToPoint(8, 28.75, 1000, {.maxSpeed = 127});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-90, 800);
+    // scraper.set_value(true);
+    // chassis.waitUntilDone();
+    // int xDist = 8;
+    // int yDist = 28.75;
+    
+    // //set pose at first loader, get balls
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist - 10, yDist, 500, {.maxSpeed = 70});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 22.5, yDist, 700, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 2, yDist, 700, {.forwards = false, .maxSpeed = 90});
+    // pros::delay(300);
+    // scraper.set_value(false);
+
+    // //score 4 balls
+    // chassis.moveToPoint(xDist + 16, yDist, 1000, {.forwards = false, .maxSpeed = 60});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-600);
+    // pros::delay(1000);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+
+    // //angle towards mid goal, pickup three balls, align with midgoal
+    // chassis.moveToPoint(xDist - 3.5, yDist, 700, {.maxSpeed = 90});
+    // xDist = xDist - 3.5;
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(135, 800);
+    // chassis.waitUntilDone();
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist + 16, yDist - 16, 700, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist + 26, yDist - 26, 700, {.maxSpeed = 60});
+    // chassis.waitUntilDone();
+    // chassis.setPose(xDist + 26, yDist - 26, chassis.getPose().theta);
+    // chassis.turnToHeading(-45, 800);
+    // chassis.waitUntilDone();
+    // trapdoor.set_value(true);
+    // xDist = xDist + 26;
+    // yDist = yDist - 26;
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist + 9, yDist - 10, 700, {.forwards = false, .maxSpeed = 90});
+    // chassis.waitUntilDone();
+
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-600);
+    // pros::delay(1000);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+
+    // xDist = xDist + 10;
+    // yDist = yDist - 10;
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // //align with long goal, descore
+    // chassis.moveToPoint(xDist - 24, yDist + 23.8, 800, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-95, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist - 24;
+    // yDist = yDist + 23.8;
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist + 22.7, yDist, 800, {.forwards = false, .maxSpeed = 127});
+    // chassis.waitUntilDone();
+}
+
+
+void skills(){
+    //Pick up 4 balls, reset poistion
+    chassis.setPose(0,0,0);
+    descore.set_value(true);
+    firstStage.move_velocity(-600);
+    chassis.moveToPose(-11, 18, -45, 600, {.minSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(-16, 23, 700, {.maxSpeed = 60});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-135, 500);
+    int xDist = -16;
+    int yDist = 23;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //drive backwards, score 5 ball into mid goal
+    firstStage.move_velocity(0);
+    chassis.moveToPoint(xDist + 10, yDist + 10, 700, {.forwards = false, .maxSpeed = 60});
+    chassis.waitUntilDone();
+    scraper.set_value(false);
+    trapdoor.set_value(true);
+    chassis.moveToPoint(xDist + 15.75, yDist + 14.5, 700, {.forwards = false});
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-400);
+    pros::delay(1200);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+
+    //drive --> align with loader/long goal + deploy scraper for first adjacent loader
+    chassis.moveToPoint(xDist - 21, yDist - 17, 1000, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 400);
+    trapdoor.set_value(false);
+    chassis.waitUntilDone();
+    scraper.set_value(true);
+    xDist = xDist - 21;
+    yDist = yDist - 17;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //drive forward and pick up 6 balls from first adjacent matchloader
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist - 10, 500, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 20, 700);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist - 12, 700, {.forwards = false});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 20, 700);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist - 6, 700, {.forwards = false, .minSpeed = 50});
+    chassis.waitUntilDone();
+
+    //reset pose, angle, drive through alley way
+    yDist = yDist - 6;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.turnToHeading(135, 500);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist - 12, yDist + 13, 800, {.forwards = false, .minSpeed = 50});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 500);
+    chassis.waitUntilDone();
+    firstStage.move_velocity(0);
+    scraper.set_value(false);
+    chassis.moveToPoint(xDist - 12, yDist + 13 + 58, 2000, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(-135, 600);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 13 + 58 + 12.75, 800, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(0, 500);
+    chassis.waitUntilDone();
+
+    //reset pose, drive into 2nd long goal, score 6 balls
+    yDist = yDist + 13 + 58 + 12.75;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist-0.3, yDist - 18, 1000, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    scraper.set_value(true);
+    pros::delay(200);
     firstStage.move_velocity(-600);
     secondStage.move_velocity(-600);
     pros::delay(2000);
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
 
-    // chassis.setPose(0, 0, 0);
-    // chassis.moveToPoint(0, -11, 700, {.forwards = false, .maxSpeed = 127});
-    // chassis.waitUntilDone();
-    // firstStage.move_velocity(600);
-    // secondStage.move_velocity(-600);
-    // pros::delay(1500);
-    // firstStage.move_velocity(0);
-    // secondStage.move_velocity(0);
-    // scraper.set_value(false);
-
-    chassis.setPose(0, 0, chassis.getPose().theta);
-    chassis.moveToPoint(-11, 8, 800, {.maxSpeed = 127});
+    //drive into 2nd loader, pick up 6 balls
+    chassis.moveToPoint(xDist, yDist, 1000, {.maxSpeed = 70});
     chassis.waitUntilDone();
-    chassis.turnToHeading(180, 800);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist + 20, 800, {.maxSpeed = 70});
     chassis.waitUntilDone();
-    chassis.moveToPoint(-11, -16, 1000, {.forwards = false, .maxSpeed = 127});
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist + 12, 800, {.forwards = false});
     chassis.waitUntilDone();
-}
-
-void rightSide4Rush(){
-    chassis.setPose(0, 0, 0);
-    firstStage.move_velocity(600);
-    chassis.moveToPoint(-8, 26.5, 1000, {.maxSpeed = 127});
+    chassis.moveToPoint(xDist, yDist + 20, 800);
     chassis.waitUntilDone();
-    chassis.turnToHeading(0, 800);
-    scraper.set_value(true);
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist + 12, 800, {.forwards = false});
     chassis.waitUntilDone();
 
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 17, 1000, {.maxSpeed = 100});
+    //drive into 2nd long goal, score 6 balls again
+    chassis.moveToPoint(xDist-0.3, yDist, 700, {.forwards = false, .maxSpeed = 70});
     chassis.waitUntilDone();
-    chassis.moveToPoint(0, 0, 700, {.forwards = false, .maxSpeed = 90});
+    chassis.moveToPoint(xDist-0.3, yDist - 18, 700, {.forwards = false, .maxSpeed = 70});
     chassis.waitUntilDone();
-    chassis.moveToPoint(0, -17, 700, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    firstStage.move_velocity(600);
+    firstStage.move_velocity(-600);
     secondStage.move_velocity(-600);
-    pros::delay(1200);
+    pros::delay(2000);
+    scraper.set_value(false);
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
+
+    //drive backward to prepare to drive across, reset pose
+    chassis.moveToPoint(xDist + 1, yDist + 2, 800, {.maxSpeed = 70});
+    chassis.waitUntilDone();
+    xDist = xDist + 1;
+    yDist = yDist + 2;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.turnToHeading(90,800);
+    chassis.waitUntilDone();
+
+    //drive across field
+    chassis.moveToPoint(xDist + 92, yDist, 3000, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(0, 800);
+    chassis.waitUntilDone();
+    xDist = xDist + 92;
+    yDist = yDist;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    //CLONE CODE
+    //drive forward and pick up 6 balls from third matchloader
+    scraper.set_value(true);
+    pros::delay(200);
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist + 10, 500, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 20, 700);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist + 12, 700, {.forwards = false});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 20, 700);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist + 10, 700, {.forwards = false, .minSpeed = 50});
+    chassis.waitUntilDone();
+
+    //reset pose, angle, drive through alley way
+    yDist = yDist + 10;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.turnToHeading(-45, 800);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 14.5, yDist - 13, 800, {.forwards = false, .minSpeed = 50});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(0, 800);
+    chassis.waitUntilDone();
+    firstStage.move_velocity(0);
     scraper.set_value(false);
+    chassis.moveToPoint(xDist + 14.5, yDist - 13 - 64.5, 2000, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(45, 800);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 3.3, yDist - 13 - 64.5 - 12.75, 800, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(180, 500);
+    chassis.waitUntilDone();
 
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(-11, 8, 700, {.maxSpeed = 127});
+    //reset pose, drive into 2nd long goal, score 6 balls
+    yDist = yDist - 13 - 64.5 - 12.75;
+    xDist = xDist + 3.3;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist, yDist + 17, 1000, {.forwards = false, .maxSpeed = 70});
     chassis.waitUntilDone();
-    chassis.turnToHeading(0, 700);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(-11, -16, 1000, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-}
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(2000);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
 
-void leftSide43(){
-    chassis.setPose(0, 0, 0);
+    //drive into last loader, pick up 6 balls
+    scraper.set_value(true);
+    pros::delay(200);
+    chassis.moveToPoint(xDist+1.5, yDist, 800, {.maxSpeed = 70});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist + 1.5, yDist - 20, 800, {.maxSpeed = 70});
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist+1.5, yDist - 12, 800, {.forwards = false});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist+1.5, yDist - 20, 800);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist - 12, 800, {.forwards = false});
+    chassis.waitUntilDone();
+
+    //drive into 2nd long goal, score 6 balls
+    chassis.moveToPoint(xDist, yDist, 700, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 17, 1000, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
     firstStage.move_velocity(600);
-    chassis.moveToPoint(8, 26.5, 1000, {.maxSpeed = 127});
+    pros::delay(600);
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(2000);
+    scraper.set_value(false);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+
+    //go into parking zone
+    chassis.moveToPoint(xDist, yDist-10, 800);
+    firstStage.move_velocity(-600);
+    chassis.waitUntilDone();
+    chassis.setPose(xDist, yDist-10, chassis.getPose().theta);
+    chassis.moveToPoint(xDist - 35, yDist - 26.5, 1500, {.maxSpeed = 80});
     chassis.waitUntilDone();
     chassis.turnToHeading(-90, 800);
+    chassis.waitUntilDone();
+    pros::delay(300);
     scraper.set_value(true);
-    chassis.waitUntilDone();
+    pros::delay(300);
 
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 17, 1100, {.maxSpeed = 100});
+    //drive through parkign zone --> park
+    chassis.setPose(0,0,0);
+    chassis.moveToPoint(0, 30, 1500, {.maxSpeed= 127});
+
+
+
+
+
+
+    //drive across
+    //chassis.moveToPoint(xDist-48, yDist, 2000);
+    /*
+
+    //angle towards stack, pick up blocks
+    chassis.turnToHeading(135, 800);
     chassis.waitUntilDone();
-    // firstStage.move_velocity(0);
-    chassis.moveToPoint(0.5, -17, 900, {.forwards = false, .maxSpeed = 127});
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist + 30, yDist - 23, 800, {.maxSpeed = 70});
     chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
-    pros::delay(1500);
+    chassis.turnToHeading(90, 800);
+    chassis.waitUntilDone();
+    chassis.setPose(xDist + 30, yDist - 23, chassis.getPose().theta);
+    chassis.moveToPoint(xDist + 30 + 45, yDist - 23, 2000, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    xDist = xDist + 30 + 45;
+    yDist = yDist - 23;
+
+    //turn towards middle goal, score
+    chassis.turnToHeading(45, 800);
+    chassis.waitUntilDone();
     firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    scraper.set_value(false);
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist - 10, yDist - 10, 700, {.forwards = false, .maxSpeed = 60});
     chassis.waitUntilDone();
-
-    chassis.moveToPoint(-8, 0, 900, {.maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-145, 800);
-    firstStage.move_velocity(600);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(-33, -27, 1000, {.maxSpeed = 127});
-    pros::delay(450);
-    scraper.set_value(true);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(50, 1000);
-    chassis.waitUntilDone();
-    firstStage.move_velocity(0);
-
-    chassis.setPose(-33, -27, chassis.getPose().theta);
     trapdoor.set_value(true);
-    chassis.moveToPoint(-43, -37, 700, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    // chassis.moveToPoint(0, -14, 700, {.maxSpeed = 127});
-    // chassis.waitUntilDone();
-    firstStage.move_velocity(600);
-    secondStage.move_velocity(-600);
+    chassis.moveToPoint(xDist - 12, yDist - 12, 700, {.forwards = false});
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-400);
     pros::delay(1200);
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
-    scraper.set_value(false);
+
+    */
+/*
+    //drive --> align with loader/long goal
+    chassis.moveToPoint(xDist + 26, yDist + 18, 1000, {.maxSpeed = 80});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(0, 800);
     trapdoor.set_value(false);
-    
-    chassis.moveToPoint(-16, -18, 800, {.maxSpeed = 127});
+    chassis.waitUntilDone();
+    scraper.set_value(true);
+    xDist = xDist + 26;
+    yDist = yDist + 18;
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+
+    /*
+    //score 4 balls
+    chassis.moveToPoint(xDist, yDist - 17, 800, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    secondStage.move_velocity(-600);
+    pros::delay(700);
+    firstStage.move_velocity(0);
+    secondStage.move_velocity(0);
+    */
+    /*
+
+    //drive into loader, pick up 6 balls
+    chassis.moveToPoint(xDist, yDist, 800, {.maxSpeed = 70});
+    chassis.waitUntilDone();
+    firstStage.move_velocity(-600);
+    chassis.moveToPoint(xDist, yDist + 20, 800, {.maxSpeed = 70});
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist + 12, 800, {.forwards = false});
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist + 20, 1000);
+    chassis.waitUntilDone();
+    pros::delay(500);
+    chassis.moveToPoint(xDist, yDist, 1200, {.forwards = false});
+    chassis.waitUntilDone();
+    */
+
+    /*
+    //angle, drive through alley
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.turnToHeading(-45, 800);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist + 11, yDist - 13, 800, {.forwards = false, .minSpeed = 50});
     chassis.waitUntilDone();
     chassis.turnToHeading(0, 800);
     chassis.waitUntilDone();
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, -19.5, 1000, {.forwards = false, .maxSpeed = 127});
+    firstStage.move_velocity(0);
+    scraper.set_value(false);
+    chassis.moveToPoint(xDist + 11, yDist - 13 - 58, 2000, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(45, 800);
+    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist, yDist - 13 - 58 - 12.75, 800, {.forwards = false, .maxSpeed = 70});
+    chassis.waitUntilDone();
+    chassis.turnToHeading(0, 800);
     chassis.waitUntilDone();
 
-}
 
-void driveThroughParkingZone(
-    int velocity,
-    int timeMs,
-    double targetHeading
-) {
-    uint32_t start = pros::millis();
 
-    while (pros::millis() - start < timeMs) {
-        double headingError =
-            lemlib::angleError(targetHeading, chassis.getPose().theta);
 
-        double turn = headingError * 2.0; // tune
-
-        leftMotors.move_velocity(velocity - turn);
-        rightMotors.move_velocity(velocity + turn);
-
-        pros::delay(10);
-    }
-
-    // stop drive
-    leftMotors.move_velocity(0);
-    rightMotors.move_velocity(0);
-}
-
-void skills(){
-    //Pick up 5 balls, reset poistion
+    // //Pick up 5 balls, reset poistion
     // chassis.setPose(0,0,0);
     // firstStage.move_velocity(-600);
     // chassis.moveToPoint(0, 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
@@ -734,397 +913,222 @@ void skills(){
     // chassis.waitUntilDone();
     // firstStage.move_velocity(0);
 
-    //drive --> position next to mid goal
-    int xDist = 28;
-    int yDist = 17;
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(xDist, yDist, 800);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(90, 800);
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-45, 800);
-    chassis.waitUntilDone();
-
-    //drive into mid goal, score 6 balls
-    chassis.moveToPoint(xDist + 18, yDist - 18, 1000, {.forwards = false});
-    trapdoor.set_value(true);
-    chassis.moveToPoint(xDist + 23, yDist - 23, 800, {.forwards = false});
-    chassis.waitUntilDone();
-    firstStage.move_velocity(-600);
-    secondStage.move_velocity(-400);
-    pros::delay(2000);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    chassis.moveToPoint(xDist - 13, yDist + 10.5, 1000);
-    chassis.waitUntilDone();
-    trapdoor.set_value(false);
-    chassis.turnToHeading(-90, 800);
-    chassis.waitUntilDone();
-    chassis.setPose(0, 0, chassis.getPose().theta);
-    scraper.set_value(true);
-
-    //set pose at first loader, get balls
-    chassis.setPose(0, 0, 0);
-    firstStage.move_velocity(-600);
-    chassis.moveToPoint(0, 22, 1100, {.maxSpeed = 70});
-    chassis.waitUntilDone();
-    pros::delay(500);
-    chassis.moveToPoint(0, 16, 700, {.forwards = false, .maxSpeed = 90});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, 22, 1200, {.maxSpeed = 70});
-    chassis.waitUntilDone();
-    pros::delay(500);
-    chassis.moveToPoint(0, 12, 700, {.forwards = false, .maxSpeed = 90});
-    scraper.set_value(false);
-
-    //angle into alley
-    chassis.waitUntilDone();
-    chassis.turnToHeading(-45, 800);
-    chassis.waitUntilDone();
-    firstStage.move_velocity(0);
-    chassis.setPose(0, 0, chassis.getPose().theta);
-    chassis.moveToPoint(0 + 12.25, 0 - 24, 800, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(0, 800);
-    chassis.waitUntilDone();
-
-    //drive through alley, align to goal
-    chassis.setPose(12, -24, chassis.getPose().theta);
-    chassis.moveToPoint(12, -24 - 50, 2000, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(45, 800);
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, -24 - 40 - 15, 800, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(180, 800);
-    chassis.waitUntilDone();
-    chassis.setPose(0, 0, 0);
-
-    //reset pose, score 6 balls
-    chassis.moveToPoint(0, -18, 700, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(-600);
-    secondStage.move_velocity(-600);
-    pros::delay(1700);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    scraper.set_value(true);
-    chassis.moveToPoint(0, 18, 700, {.maxSpeed = 127});
-    chassis.waitUntilDone();
-
-    //go into 2nd match loader --> score
-    firstStage.move_velocity(-600);
-    chassis.moveToPoint(0, 18 + 17, 1100, {.maxSpeed = 70});
-    chassis.waitUntilDone();
-    pros::delay(500);
-    chassis.moveToPoint(0, 18 + 10, 700, {.forwards = false, .maxSpeed = 90});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, 18 + 17, 1200, {.maxSpeed = 70});
-    chassis.waitUntilDone();
-    pros::delay(500);
-    chassis.moveToPoint(0, 18, 700, {.forwards = false, .maxSpeed = 90});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, 0, 700, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
-    firstStage.move_velocity(-600);
-    secondStage.move_velocity(-600);
-    pros::delay(1700);
-    firstStage.move_velocity(0);
-    secondStage.move_velocity(0);
-    scraper.set_value(false);
-
-    //align with blue parking zone, pick up at least 5 balls
-    chassis.moveToPoint(0, 18, 700, {.maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.setPose(0, 0, chassis.getPose().theta);
-    chassis.moveToPoint(0 + 32, 18 + 15, 800, {.maxSpeed = 127});
-    chassis.waitUntilDone();
-    chassis.turnToHeading(90, 800);
-    chassis.waitUntilDone();
-
-    //Pick up 5 balls, reset poistion
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(-600);
-    chassis.moveToPoint(0, 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
-    chassis.moveToPoint(0, 64, 3500, {.maxSpeed = 75});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(0, 15, 2000, {.forwards = false, .maxSpeed = 30}); 
-    chassis.waitUntilDone();
-    firstStage.move_velocity(0);
-
-
-
     // //drive --> position next to mid goal
-    // int midGoalDistX = 43.3;
-    // int midGoalDistY = 39.4;
-    // chassis.setPose(0, 0, chassis.getPose().theta);
-    // firstStage.move_velocity(0);
-    // chassis.moveToPoint(-9, 10, 800);
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(43, 800);
-    // chassis.waitUntilDone();
-    // chassis.moveToPoint(-9 - midGoalDistX, 10 - midGoalDistY, 3500, {.forwards = false, .maxSpeed = 80});
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(135, 800);
-    // chassis.waitUntilDone();
-    // chassis.setPose(-9 - midGoalDistX, 10 - midGoalDistY, chassis.getPose().theta);
-
-    // trapdoor.set_value(true);
-    // chassis.moveToPoint(-9 - midGoalDistX - 6, 10 - midGoalDistY + 6, 800, {.forwards = false});
-    // chassis.waitUntilDone();
-    // firstStage.move_voltage(-12000);
-    // secondStage.move_velocity(-300);
-    // pros::delay(4000);
-    // firstStage.move_voltage(0);
-    // secondStage.move_velocity(0);
-    // chassis.moveToPoint(-9 - midGoalDistX - 8, 10 - midGoalDistY + 8, 400, {.forwards = false});
-    // chassis.moveToPoint(-9 - midGoalDistX - 3, 10 - midGoalDistY + 3, 400);
-    // chassis.moveToPoint(-9 - midGoalDistX - 8, 10 - midGoalDistY + 8, 400, {.forwards = false});
-    // chassis.moveToPoint(-9 - midGoalDistX + 7, 10 - midGoalDistY - 7, 800);
-    // pros::delay(100);
-    // trapdoor.set_value(false);
-    // scraper.set_value(true);
-    // chassis.waitUntilDone();
-    // chassis.moveToPoint(-9 - midGoalDistX + 7 + 23, 10 - midGoalDistY - 7 - 26.5, 800);
+    // int xDist = 28;
+    // int yDist = 17;
+    // chassis.setPose(chassis.getPose().x, 0, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist, yDist, 800);
     // chassis.waitUntilDone();
     // chassis.turnToHeading(90, 800);
     // chassis.waitUntilDone();
-    // firstStage.move_voltage(0);
-    
-    // //drive into long goal, score 3
-    // chassis.setPose(-9 - midGoalDistX + 7 + 23, 10 - midGoalDistY - 7 - 26.5, chassis.getPose().theta);
-    // chassis.moveToPoint(-9 - midGoalDistX + 7 + 23 - 17, 10 - midGoalDistY - 7 - 26.5, 800, {.forwards = false});
-    // chassis.waitUntilDone();
-    // firstStage.move_voltage(-600);
-    // secondStage.move_velocity(-600);
-    // pros::delay(800);
-    // firstStage.move_velocity(0);
-    // secondStage.move_velocity(0);
-
-
-
-
-
-    // //Drive through park zone
-    // chassis.setPose(0,0,0);
-    // scraper.set_value(true);
-    // firstStage.move_velocity(600);
-    // pros::delay(300);
-    // chassis.moveToPoint(0, 30, 2000, {.maxSpeed = 127}); // get over initial barrier
-    // pros::delay(300);
-    // scraper.set_value(false);
-    // chassis.moveToPoint(0, 65, 3000);
-    // chassis.waitUntilDone();
-
-    // //align to loader
-    // chassis.setPose(0, 65, chassis.getPose().theta);
-    // chassis.moveToPoint(17, 77, 800, {.maxSpeed = 127});
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(90, 800);
-    // chassis.waitUntilDone();
-    // chassis.turnToHeading(-91.5, 800);
-    // chassis.waitUntilDone();
-
-    // //Go into Match Loader, Drive out from loader, angle in alley
-    // chassis.setPose(0, 0, 0);
-    // scraper.set_value(true);
-    // firstStage.move_velocity(600);
-    // chassis.moveToPoint(0, 20, 1100, {.maxSpeed = 70});
-    // chassis.waitUntilDone();
-    // pros::delay(400);
-    // // chassis.moveToPoint(7, 84, 700, {.forwards = false, .maxSpeed = 90});
-    // // chassis.waitUntilDone();
-    // // chassis.moveToPoint(0, 84, 1200, {.maxSpeed = 70});
-    // // chassis.waitUntilDone();
-    // // pros::delay(500);
-    // chassis.moveToPoint(0, 9, 700, {.forwards = false, .maxSpeed = 90});
-    // scraper.set_value(false);
-    // chassis.waitUntilDone();
-
-    // chassis.turnToHeading(-135, 800);
-    // chassis.waitUntilDone();
-    // chassis.setPose(0, 9, chassis.getPose().theta);
-    // chassis.moveToPoint(0 - 23, 9 - 23, 800);
-    // chassis.waitUntilDone();
-    // pros::delay(300);
-    // chassis.turnToHeading(45, 800);
-    // firstStage.move_velocity(0);
-    // chassis.waitUntilDone();
-    // trapdoor.set_value(true);
-    // chassis.setPose(0 - 23, 9 - 23, chassis.getPose().theta);
-    // chassis.moveToPoint(0 - 23 - 14, 9 - 23 - 14, 800, {.forwards = false});
-    // chassis.waitUntilDone();
-    // firstStage.move_velocity(600);
-    // secondStage.move_velocity(-300);
-    // pros::delay(4000);
-    // firstStage.move_velocity(0);
-    // secondStage.move_velocity(0);
-    // chassis.moveToPoint(0 - 23 - 16, 9  - 23 - 16, 800, {.forwards = false});
-
-
-
-
-
-
-
-
     // chassis.turnToHeading(-45, 800);
     // chassis.waitUntilDone();
+
+    // //drive into mid goal, score 6 balls
+    // chassis.moveToPoint(xDist + 18, yDist - 18, 1000, {.forwards = false});
+    // trapdoor.set_value(true);
+    // chassis.moveToPoint(xDist + 23, yDist - 23, 800, {.forwards = false});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-400);
+    // pros::delay(2000);
     // firstStage.move_velocity(0);
-    // chassis.setPose(0, 0, chassis.getPose().theta);
-    // chassis.moveToPoint(0 + 10, 0 - 24, 800, {.forwards = false, .maxSpeed = 127});
+    // secondStage.move_velocity(0);
+    // chassis.moveToPoint(xDist - 10.5, yDist + 10.5, 1000);
     // chassis.waitUntilDone();
-    // chassis.turnToHeading(0, 800);
+    // trapdoor.set_value(false);
+    // chassis.turnToHeading(-90, 800);
     // chassis.waitUntilDone();
-    
+    // chassis.setPose(xDist - 10.5, yDist + 10.5, chassis.getPose().theta);
+    // scraper.set_value(true);
+    // xDist = xDist - 10.5;
+    // yDist = yDist + 10.5;
+
+    // //set pose at first loader, get balls
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist - 16, yDist, 1100, {.maxSpeed = 50});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 22.5, yDist, 700, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // pros::delay(800);
+    // chassis.moveToPoint(xDist - 2, yDist, 700, {.forwards = false, .maxSpeed = 90});
+    // pros::delay(300);
+    // scraper.set_value(false);
+    // xDist = xDist - 2;
+
+    // //angle into alley
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-145, 800);
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(0);
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist + 15, yDist + 12.75, 800, {.forwards = false});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-90, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist + 15;
+    // yDist = yDist + 12.75;
+
+    // //drive through alley, align to goal
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist + 51, yDist, 2000, {.forwards = false});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-45, 800);
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist + 51 + 13, yDist - 12, 800, {.forwards = false});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(90, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist + 51 + 13;
+    // yDist = yDist - 12;
+
+    // //reset pose, score 6 balls
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist - 16, yDist, 700, {.forwards = false});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-600);
+    // pros::delay(1700);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+    // scraper.set_value(true);
+
+    // //center, drive into match loader
+    // chassis.moveToPoint(xDist + 5, yDist, 700);
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist + 16, yDist, 1100, {.maxSpeed = 50});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist + 22.5, yDist, 700, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // pros::delay(800);
+    // chassis.moveToPoint(xDist + 5, yDist, 700, {.forwards = false, .maxSpeed = 90});
+    // pros::delay(300);
+    // scraper.set_value(false);
+
+    // //score 6 balls
+    // chassis.moveToPoint(xDist - 16, yDist, 1300, {.forwards = false, .maxSpeed = 60});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-600);
+    // pros::delay(1700);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+
+    // //align with blue parking zone
+    // chassis.moveToPoint(xDist + 5, yDist, 700);
+    // chassis.waitUntilDone();
+    // chassis.setPose(xDist + 5, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist + 5 + 20, yDist - 30, 800, {.maxSpeed = 127});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(180, 800);
+    // chassis.waitUntilDone();
+    // pros::delay(500);
+    // xDist = xDist + 5 + 20;
+    // yDist = yDist - 30; 
+
+    // //Pick up 5 balls, reset poistion
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist, yDist - 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
+    // chassis.moveToPoint(xDist, yDist - 62, 3500, {.maxSpeed = 75});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist, yDist - 20, 2000, {.forwards = false, .maxSpeed = 30}); 
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(0);
+    // yDist = yDist - 15;
+
+    // //drive --> position next to mid goal
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist - 24, yDist - 33.5, 800);
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(90, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist - 24;
+    // yDist = yDist - 33.5;
+
+    // //reset pose, score 6 balls
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist, yDist, 700, {.forwards = false});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 16, yDist, 700, {.forwards = false});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-600);
+    // pros::delay(1700);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+    // scraper.set_value(true);
+    // // yDist = yDist - 1;
+
+    // //center, drive into match loader
+    // chassis.moveToPoint(xDist + 5, yDist, 700);
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(xDist + 16, yDist, 1100, {.maxSpeed = 50});
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist + 22.5, yDist, 700, {.maxSpeed = 90});
+    // chassis.waitUntilDone();
+    // pros::delay(800);
+    // chassis.moveToPoint(xDist + 5, yDist, 700, {.forwards = false, .maxSpeed = 90});
+    // scraper.set_value(false);
+    // xDist = xDist + 5;
+
+    // //angle to mid goal, drive into mid goal, score 3 balls
+    // chassis.turnToHeading(135, 800);
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 30, yDist + 30, 1000, {.forwards = false});
+    // trapdoor.set_value(true);
+    // chassis.moveToPoint(xDist - 37, yDist + 37, 800, {.forwards = false});
+    // chassis.waitUntilDone();
+    // firstStage.move_velocity(-600);
+    // secondStage.move_velocity(-400);
+    // pros::delay(1000);
+    // firstStage.move_velocity(0);
+    // secondStage.move_velocity(0);
+    // xDist = xDist - 37;
+    // yDist = yDist + 37;
+
+    // //drive out from mid goal, move across field towards red side
+    // chassis.moveToPoint(xDist + 8, yDist - 8, 1000);
+    // chassis.waitUntilDone();
+    // trapdoor.set_value(false);
+    // chassis.turnToHeading(90, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist + 8;
+    // yDist = yDist - 8;
+
+    // chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    // chassis.moveToPoint(xDist - 51, yDist, 2000, {.forwards = false, .maxSpeed = 127});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(45, 800);
+    // chassis.waitUntilDone();
+    // chassis.moveToPoint(xDist - 51  - 13, yDist - 13, 800, {.forwards = false, .maxSpeed = 127});
+    // chassis.waitUntilDone();
+    // chassis.turnToHeading(-90, 800);
+    // chassis.waitUntilDone();
+    // xDist = xDist + 51 + 13;
+    // yDist = yDist - 13;
+    */
 }  
 
-// void skills(){
-//     //drive and score 2 balls into middle, align with loader
-//     chassis.setPose(0, 0, 0);
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(600);
-//     chassis.moveToPoint(0, 36, 1300, {.maxSpeed = 100});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(-135, 800);
-//     firstStage.move_velocity(0);
-//     chassis.waitUntilDone();
-//     trapdoor.set_value(true);
-//     chassis.moveToPoint(0 + 10, 36 + 10, 800, {.forwards = false, .maxSpeed = 100});
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-400);
-//     pros::delay(800);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     scraper.set_value(true);
-//     chassis.moveToPoint(0 - 25, 36 - 25, 1000, {.maxSpeed = 100});
-//     chassis.waitUntilDone();
-//     trapdoor.set_value(false);
-//     chassis.turnToHeading(177, 800);
-//     chassis.waitUntilDone();
-
-//     //Go into Match Loader, Drive out from loader, angle in alley
-//     chassis.setPose(0, 0, 0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 17, 1100, {.maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     pros::delay(500);
-//     chassis.moveToPoint(0, 10, 700, {.forwards = false, .maxSpeed = 90});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, 17, 1200, {.maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     pros::delay(500);
-//     chassis.moveToPoint(0, 0, 700, {.forwards = false, .maxSpeed = 90});
-//     scraper.set_value(false);
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(-45, 800);
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(0);
-//     chassis.setPose(0, 0, chassis.getPose().theta);
-//     chassis.moveToPoint(0 + 10, 0 - 24, 800, {.forwards = false, .maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(0, 800);
-//     chassis.waitUntilDone();
-
-//     //drive through alley, align to goal
-//     chassis.setPose(10, -24, chassis.getPose().theta);
-//     chassis.moveToPoint(10, -24 - 38, 2000, {.forwards = false, .maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(45, 800);
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(-3, -24 - 38 - 15, 800, {.forwards = false, .maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(180, 800);
-//     chassis.waitUntilDone();
-//     chassis.setPose(0, 0, 0);
-
-//     //reset pose, score 6 balls
-//     chassis.moveToPoint(0, -17, 700, {.forwards = false, .maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1700);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     scraper.set_value(true);
-//     chassis.moveToPoint(0, 0, 700, {.maxSpeed = 127});
-//     chassis.waitUntilDone();
-
-//     //go into 2nd match loader --> score
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 17, 1100, {.maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     pros::delay(500);
-//     chassis.moveToPoint(0, 10, 700, {.forwards = false, .maxSpeed = 90});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, 17, 1200, {.maxSpeed = 70});
-//     chassis.waitUntilDone();
-//     pros::delay(500);
-//     chassis.moveToPoint(0, 0, 700, {.forwards = false, .maxSpeed = 90});
-//     chassis.waitUntilDone();
-//     chassis.moveToPoint(0, -17, 700, {.forwards = false, .maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     firstStage.move_velocity(600);
-//     secondStage.move_velocity(-600);
-//     pros::delay(1700);
-//     firstStage.move_velocity(0);
-//     secondStage.move_velocity(0);
-//     scraper.set_value(false);
-
-//     //align with blue parking zone, pick up at least 5 balls
-//     chassis.moveToPoint(0, 0, 700, {.maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.setPose(0, 0, chassis.getPose().theta);
-//     chassis.moveToPoint(0 + 29, 0 + 19, 800, {.maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(90, 800);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0,0,0);
-//     firstStage.move_velocity(600);
-//     chassis.moveToPoint(0, 65, 5000, {.maxSpeed = 60});
-//     pros::delay(50);
-//     scraper.set_value(true);
-//     pros::delay(650);
-//     scraper.set_value(false);
-//     chassis.waitUntilDone();
-
-//     chassis.setPose(0, 65, chassis.getPose().theta);
-//     chassis.moveToPoint(0 + 40, 65 + 5, 800, {.maxSpeed = 127});
-//     chassis.waitUntilDone();
-//     chassis.turnToHeading(90, 800);
-//     chassis.waitUntilDone();
-// }
-
 void autonomous(){
-    pros::Task intakeTask([] {
-        while (true) {
-            updateIntakeJamSystem();
-            pros::delay(10);
-        }
-    });
 
+    // soloAWP();
+    // leftSide4Rush();
+    //rightSide4Rush();
     // rightSide7Push();
-    // leftSide43();  
+    //leftSide43();  
     skills();
 }
 
 void opcontrol() {
-    // controller
-    pros::Task intakeTask([] {
-        while (true) {
-            updateIntakeJamSystem();
-            pros::delay(10);
-        }
-    });
 
-    chassis.setPose(0,0,0);
-    firstStage.move_velocity(-600);
-    chassis.moveToPoint(0, 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
-    chassis.moveToPoint(0, 64, 3500, {.maxSpeed = 75});
-    chassis.waitUntilDone();
+    // chassis.setPose(0,0,0);
+    // firstStage.move_velocity(-600);
+    // chassis.moveToPoint(0, 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
+    // chassis.moveToPoint(0, 64, 3500, {.maxSpeed = 75});
+    // chassis.waitUntilDone();
 
     // loop to continuously update motors
     while (true) {
@@ -1172,14 +1176,6 @@ void opcontrol() {
         updateIntakeAndDescore();
         deployScraper();
         deployTrapdoor();
-
-        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)) {
-            chassis.setPose(0,0,0);
-            firstStage.move_velocity(-600);
-            chassis.moveToPoint(0, 35, 1000, {.maxSpeed = 127, .minSpeed = 110});
-            chassis.moveToPoint(0, 64, 3500, {.maxSpeed = 75});
-            chassis.waitUntilDone();
-        }
         
         // delay to save resources
         pros::delay(10);
