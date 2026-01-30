@@ -496,12 +496,12 @@ void rightSide4Rush(){
     xDist = xDist - 10;
 
     //descore arm
-    chassis.setPose(xDist, yDist, chassis.getPose().theta);
-    chassis.moveToPoint(xDist + 6, yDist + 14, 800);
+    chassis.setPose(0, 0, 0);
+    chassis.moveToPoint(-11, 6, 800);
     chassis.waitUntilDone();
-    chassis.turnToHeading(85, 800); 
+    chassis.turnToHeading(-5, 800); 
     chassis.waitUntilDone();
-    chassis.moveToPoint(xDist - 1, yDist + 14, 800, {.forwards = false, .minSpeed = 110});
+    chassis.moveToPoint(-9, 6 - 9, 800, {.forwards = false, .minSpeed = 80});
     chassis.waitUntilDone();
 }
 
@@ -1075,9 +1075,9 @@ void autonomous(){
 
     // soloAWP();
     // leftSide4Rush();
-    // rightSide4Rush();
+    rightSide4Rush();
     // rightSide7Push();
-    leftSide43();  
+    // leftSide43();  
     // skills();
 }
 
