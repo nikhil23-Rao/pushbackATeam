@@ -226,7 +226,7 @@ void updateIntakeAndDescore() {
         else {
             // idle
             descore.set_value(descoreDeployed);
-            // firstStage.move_velocity(0);
+            firstStage.move_velocity(0);
             secondStage.move_velocity(0);
         }
     }
@@ -385,57 +385,66 @@ void leftSide4Rush(){
 
 void rightSide4Rush(){
     //move to first loader, turn towards it
+  //move to first loader, turn towards it
+    descore.set_value(true);
     chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(0, 32, 1000);
+    chassis.moveToPoint(0, 32.5, 1000);
     chassis.waitUntilDone();
-    chassis.turnToHeading(90, 800);
+    chassis.turnToHeading(86, 800);
     scraper.set_value(true);
     chassis.waitUntilDone();
     int xDist = 0;
-    int yDist = 32;
+    double yDist = 32.5;
     
     //set pose at first loader, get balls
     chassis.setPose(xDist, yDist, chassis.getPose().theta);
     firstStage.move_velocity(-600);
-    chassis.moveToPoint(xDist + 10, yDist - 1.5, 500, {.maxSpeed = 127});
+    chassis.moveToPoint(xDist + 10, yDist - 0.3, 500, {.maxSpeed = 127});
     chassis.waitUntilDone();
-    chassis.moveToPoint(xDist + 22.5, yDist - 1.5, 700, {.maxSpeed = 90});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(xDist, yDist - 1.5, 700, {.forwards = false, .maxSpeed = 60});
-    pros::delay(300);
-    scraper.set_value(false);
-    yDist = yDist - 1.5;
+    chassis.moveToPoint(xDist + 22.5, yDist - 0.3, 400, {.maxSpeed = 90, .minSpeed = 30});
+    chassis.moveToPoint(xDist, yDist  - 1.55, 800, {.forwards = false, .maxSpeed = 60});
+    pros::delay(600);
+    
+    // yDist = yDist - 1.5;
+
 
     //score 4 balls
-    chassis.moveToPoint(xDist - 13, yDist, 1000, {.forwards = false, .maxSpeed = 127});
-    chassis.waitUntilDone();
+    chassis.moveToPoint(xDist - 16.1, yDist  - 2.5, 1000, {.forwards = false, .maxSpeed = 100});
+    pros::delay(200);
+    scraper.set_value(false);
+    // chassis.waitUntilDone();
+    pros::delay(500);
     firstStage.move_velocity(-600);
     secondStage.move_velocity(-600);
-    pros::delay(1000);
+    pros::delay(1650);
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
-    xDist = xDist - 10;
+    xDist = xDist - 14.5;
+    yDist = yDist - 2.5;
+    descore.set_value(false);
 
     //descore arm
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(-11, 6, 800);
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist + 6, yDist + 11.6, 800);
     chassis.waitUntilDone();
-    chassis.turnToHeading(-5, 800); 
+    chassis.turnToHeading(87, 800); 
     chassis.waitUntilDone();
-    chassis.moveToPoint(-9, 6 - 9, 800, {.forwards = false, .minSpeed = 80});
+    chassis.moveToPoint(xDist + 6 - 22.85, yDist + 11.15, 800, {.forwards = false});
     chassis.waitUntilDone();
 }
 
 void leftSide43(){
     //Pick up 4 balls, reset poistion
     chassis.setPose(0,0,0);
+    descore.set_value(true);
     firstStage.move_velocity(-600);
     // chassis.moveToPose(-7, 18, -45, 600, {.minSpeed = 80});
     // chassis.waitUntilDone();
-    chassis.moveToPoint(-9, 23, 1000, {.maxSpeed = 60});
-    pros::delay(750);
+    chassis.moveToPoint(-9.125, 23, 1100, {.maxSpeed = 47});
+    pros::delay(925);
     scraper.set_value(true);
     chassis.waitUntilDone();
+    pros::delay(200);
     chassis.turnToHeading(-135, 800);
     int xDist = -9;
     int yDist = 23;
@@ -447,36 +456,37 @@ void leftSide43(){
     trapdoor.set_value(true); 
     chassis.waitUntilDone();
     firstStage.move_velocity(0);
-    chassis.moveToPoint(xDist + 15, yDist + 14.25, 700, {.forwards = false});
+    chassis.moveToPoint(xDist + 14.5, yDist + 14.3, 800, {.forwards = false});
+    pros::delay(400);
     firstStage.move_velocity(-600);
     secondStage.move_velocity(-400);
     pros::delay(1000);
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
+    scraper.set_value(false);
 
     //drive --> align with loader/long goal
-    chassis.moveToPoint(xDist - 23, yDist - 17, 1000, {.maxSpeed = 80});
+    chassis.moveToPoint(xDist - 24, yDist - 17, 1000, {.maxSpeed = 80});
     chassis.waitUntilDone();
     chassis.turnToHeading(180, 800);
     trapdoor.set_value(false);
     chassis.waitUntilDone();
     scraper.set_value(true);
-    xDist = xDist - 23;
+    xDist = xDist - 23.5;
     yDist = yDist - 17;
     chassis.setPose(xDist, yDist, chassis.getPose().theta);
 
     //pick up 6 balls
     firstStage.move_velocity(-600);
     chassis.moveToPoint(xDist, yDist - 10, 800, {.maxSpeed = 80});
-    chassis.waitUntilDone();
-    chassis.moveToPoint(xDist, yDist - 23, 1000);
-    chassis.waitUntilDone();
-    pros::delay(200);
+    chassis.moveToPoint(xDist, yDist - 23, 700, {.maxSpeed = 90, .minSpeed = 30});
+    // pros::delay(300);
+    // scraper.set_value(false);
 
     //move back --> score
-    chassis.moveToPoint(xDist, yDist, 800, {.forwards = false, .maxSpeed = 80});
+    chassis.moveToPoint(xDist+0.5, yDist, 800, {.forwards = false, .maxSpeed = 80});
     chassis.waitUntilDone();
-    chassis.moveToPoint(xDist, yDist + 17, 800, {.forwards = false, .maxSpeed = 80});
+    chassis.moveToPoint(xDist+0.5, yDist + 17, 800, {.forwards = false, .maxSpeed = 80});
     chassis.waitUntilDone();
     firstStage.move_velocity(-600);
     secondStage.move_velocity(-600);
@@ -484,15 +494,17 @@ void leftSide43(){
     firstStage.move_velocity(0);
     secondStage.move_velocity(0);
     yDist = yDist + 17;
+    xDist = xDist + 0.5;
     scraper.set_value(false);
+    descore.set_value(false);
 
     //descore arm
-    chassis.setPose(0, 0, 0);
-    chassis.moveToPoint(-11, 6, 800);
+    chassis.setPose(xDist, yDist, chassis.getPose().theta);
+    chassis.moveToPoint(xDist + 10.5, yDist - 6, 800);
     chassis.waitUntilDone();
-    chassis.turnToHeading(-4, 800); 
+    chassis.turnToHeading(180, 800); 
     chassis.waitUntilDone();
-    chassis.moveToPoint(-9.25, 6 - 8, 800, {.forwards = false, .minSpeed = 80});
+    chassis.moveToPoint(xDist + 10.5, yDist - 6 + 21.5, 800, {.forwards = false});
     chassis.waitUntilDone();
 
 
@@ -1115,11 +1127,11 @@ void skills(){
 void autonomous(){
 
     // soloAWP();
-    // leftSide4Rush();
-    //rightSide4Rush();
+    //leftSide4Rush();
+    rightSide4Rush();
     // rightSide7Push();
     //leftSide43();  
-    skills();
+    //i9skills();
 }
 
 void opcontrol() {
