@@ -14,6 +14,11 @@ pros::MotorGroup rightMotors({-7, 4,8}, pros::MotorGearset::blue); // right moto
 // Inertial Sensor on port 10
 pros::Imu imu(21);
 
+//dist sensors
+pros::Distance distance_front(2);
+pros::Distance distance_side(3);
+
+
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 pros::Rotation horizontalEnc(17);
@@ -230,6 +235,21 @@ void updateIntakeAndDescore() {
             secondStage.move_velocity(0);
         }
     }
+}
+
+float initFrontPos = 0;
+float initSidePos = 0;
+
+void calibrateDist(){
+    initFrontPos = distance_front.get();
+    initSidePos = distance_side.get();
+
+}
+
+void distReset(){
+    float frontDist = initFrontPos - distance_front.get();
+    float sideDist = initSidePos - distance_side.get();
+    chassis.setPose(sideDist, frontDist, 1000);
 }
 
 void soloAWP(){
